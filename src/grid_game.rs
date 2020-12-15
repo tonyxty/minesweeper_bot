@@ -58,7 +58,6 @@ impl CoopGame {
 
     pub fn interact(&mut self, coord: Coord, user: &User) -> Option<InteractResult> {
         if self.game.interact(coord) {
-
             let username = user.username.as_ref().unwrap_or(&user.first_name);
             let value = self.interactions.get_mut(username);
             if let Some(x) = value {

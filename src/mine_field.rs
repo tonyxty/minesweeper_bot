@@ -1,8 +1,8 @@
 use std::collections::vec_deque::VecDeque;
 use std::iter::once;
 
-use crate::mine_field::CellStatus::{Covered, Exploded, Uncovered};
 use crate::grid_game::Coord;
+use crate::mine_field::CellStatus::{Covered, Exploded, Uncovered};
 
 // In our UI there is no flagging & unflagging; a cell with mine is uncovered when the player
 // decided to "uncover-around" an adjacent cell.  But we use an enum here for extensibility.

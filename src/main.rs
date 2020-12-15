@@ -4,7 +4,7 @@ use std::env;
 use futures::StreamExt;
 use telegram_bot::*;
 
-use crate::grid_game::{Coord, GridGame, CoopGame};
+use crate::grid_game::{CoopGame, Coord, GridGame};
 use crate::minesweeper::Minesweeper;
 
 mod mine_field;
