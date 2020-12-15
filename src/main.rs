@@ -4,7 +4,7 @@ use std::env;
 use futures::StreamExt;
 use telegram_bot::*;
 
-use crate::grid_game::{Coord, GameState, GridGame};
+use crate::grid_game::{Coord, GridGame, CoopGame};
 use crate::minesweeper::Minesweeper;
 
 mod mine_field;
@@ -19,7 +19,7 @@ fn parse_coord(s: Option<&str>) -> Option<Coord> {
 }
 
 async fn handle_update(api: &Api,
-                       running_games: &mut HashMap<(ChatId, MessageId), Minesweeper>,
+                       running_games: &mut HashMap<(ChatId, MessageId), CoopGame>,
                        update: Result<Update, Error>) -> Result<(), Error> {
     let update = update?;
     if let UpdateKind::Message(message) = update.kind {
@@ -30,7 +30,7 @@ async fn handle_update(api: &Api,
                     .text_reply(game.get_text())
                     .reply_markup(game.to_inline_keyboard())).await?;
                 if let MessageOrChannelPost::Message(reply) = reply {
-                    running_games.insert((reply.chat.id(), reply.id), game);
+                    running_games.insert((reply.chat.id(), reply.id), CoopGame::new(Box::new(game)));
                 }
             }
         }
@@ -39,22 +39,11 @@ async fn handle_update(api: &Api,
         if let Some(coord) = parse_coord(query.data.as_ref().map(String::as_str)) {
             if let MessageOrChannelPost::Message(message) = query.message.unwrap() {
                 if let Some(game) = running_games.get_mut(&(message.chat.id(), message.id)) {
-                    let changed = game.interact(coord);
-                    if changed {
-                        let keyboard_markup = game.to_inline_keyboard();
-                        match game.get_state() {
-                            GameState::Normal => {
-                                api.send(message.edit_reply_markup(Some(keyboard_markup))).await?;
-                            }
-                            GameState::Solved => {
-                                api.send(message.edit_text("Solved!").reply_markup(keyboard_markup)).await?;
-                                running_games.remove(&(message.chat.id(), message.id));
-                            }
-                            GameState::GameOver => {
-                                api.send(message.edit_text("Game over!").reply_markup(keyboard_markup)).await?;
-                                running_games.remove(&(message.chat.id(), message.id));
-                            }
+                    if let Some(result) = game.interact(coord, &query.from) {
+                        if result.is_game_end() {
+                            running_games.remove(&(message.chat.id(), message.id));
                         }
+                        let _ = result.reply_to(api, &message).await;
                     }
                 }
             }
