@@ -8,3 +8,6 @@ edition = "2018"
 
 [dependencies]
 rand = "*"
+futures = "*"
+tokio = { version = "*", features = ["full"] }
+telegram-bot = "*"
