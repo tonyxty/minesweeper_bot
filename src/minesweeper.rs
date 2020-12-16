@@ -84,7 +84,7 @@ fn to_char(cell: &Cell) -> char {
     } else if cell.is_mine() {
         '🚩'
     } else if cell.get_value() == 0 {
-        '□'
+        ' '
     } else {
         char::from_digit(cell.get_value(), 10).unwrap()
     }
