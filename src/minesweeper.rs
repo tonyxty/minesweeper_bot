@@ -30,7 +30,7 @@ impl Minesweeper {
             columns = 8;
         }
         let mines = parse_number(iter.next()).unwrap_or_else(|| rows * columns / 10);
-        Minesweeper {
+        Self {
             field: MineField::new(rows, columns, mines)
         }
     }

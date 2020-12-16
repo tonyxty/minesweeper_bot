@@ -1,7 +1,8 @@
-use telegram_bot::*;
 use std::collections::HashMap;
 
-pub type Coord = (usize, usize);
+use telegram_bot::*;
+
+use crate::game::{Coord, Game, InteractResult};
 
 #[derive(Eq, PartialEq)]
 pub enum GameState {
@@ -18,45 +19,23 @@ pub trait GridGame {
 }
 
 
-pub struct CoopGame {
-    game: Box<dyn GridGame>,
+pub struct CoopGame<T: GridGame> {
+    game: T,
     interactions: HashMap<String, u32>,
 }
 
-pub struct InteractResult {
-    update_text: Option<String>,
-    update_board: Option<InlineKeyboardMarkup>,
-    game_end: bool,
-}
 
-impl InteractResult {
-    pub fn is_game_end(&self) -> bool {
-        self.game_end
-    }
-
-    pub async fn reply_to(self, api: &Api, message: &Message) -> Result<Message, Error> {
-        if let Some(text) = self.update_text {
-            if let Some(board) = self.update_board {
-                api.send(message.edit_text(text).reply_markup(board)).await
-            } else {
-                api.send(message.edit_text(text)).await
-            }
-        } else {
-            let board = self.update_board.unwrap();
-            api.send(message.edit_reply_markup(Some(board))).await
-        }
-    }
-}
-
-impl CoopGame {
-    pub fn new(game: Box<dyn GridGame>) -> Self {
+impl<T: GridGame> CoopGame<T> {
+    pub fn new(game: T) -> Self {
         Self {
             game,
             interactions: HashMap::new(),
         }
     }
+}
 
-    pub fn interact(&mut self, coord: Coord, user: &User) -> Option<InteractResult> {
+impl<T: GridGame> Game for CoopGame<T> {
+    fn interact(&mut self, coord: Coord, user: &User) -> Option<InteractResult> {
         if self.game.interact(coord) {
             let username = user.username.as_ref().unwrap_or(&user.first_name);
             let value = self.interactions.get_mut(username);
