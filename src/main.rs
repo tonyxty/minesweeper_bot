@@ -28,26 +28,26 @@ fn parse_coord(s: Option<&str>) -> Option<Coord> {
     Some((row, column))
 }
 
-struct GameManager {
+struct GameManager<'a> {
+    api: &'a Api,
     running_games: HashMap<(ChatId, MessageId), Box<dyn Game>>,
 }
 
-impl GameManager {
-    fn new() -> GameManager {
+impl<'a> GameManager<'a> {
+    fn new(api: &'a Api) -> GameManager<'a> {
         Self {
+            api,
             running_games: HashMap::new(),
         }
     }
 
-    async fn handle_update(&mut self,
-                           api: &Api,
-                           update: Result<Update, Error>) -> Result<(), Error> {
+    async fn handle_update(&mut self, update: Result<Update, Error>) -> Result<(), Error> {
         let update = update?;
         if let UpdateKind::Message(message) = update.kind {
             if let MessageKind::Text { data: ref command, .. } = message.kind {
                 if command.starts_with("/mine") {
                     let game = Minesweeper::from_command(command);
-                    let reply = api.send(message
+                    let reply = self.api.send(message
                         .text_reply(game.get_text())
                         .reply_markup(game.to_inline_keyboard())).await?;
                     if let MessageOrChannelPost::Message(reply) = reply {
@@ -56,7 +56,7 @@ impl GameManager {
                 }
             }
         } else if let UpdateKind::CallbackQuery(query) = update.kind {
-            api.send(query.acknowledge()).await?;
+            self.api.send(query.acknowledge()).await?;
             if let Some(coord) = parse_coord(query.data.as_ref().map(String::as_str)) {
                 if let MessageOrChannelPost::Message(message) = query.message.unwrap() {
                     if let Some(game) = self.running_games.get_mut(&(message.chat.id(), message.id)) {
@@ -64,7 +64,7 @@ impl GameManager {
                             if result.game_end {
                                 self.running_games.remove(&(message.chat.id(), message.id));
                             }
-                            let _ = result.reply_to(api, &message).await;
+                            let _ = result.reply_to(self.api, &message).await;
                         }
                     }
                 }
@@ -95,9 +95,9 @@ async fn main() {
     let api = Api::with_connector(token, connector);
     let mut stream = api.stream();
 
-    let mut manager: GameManager = GameManager::new();
+    let mut manager: GameManager = GameManager::new(&api);
 
     while let Some(update) = stream.next().await {
-        let _ = manager.handle_update(&api, update).await;
+        let _ = manager.handle_update(update).await;
     }
 }
