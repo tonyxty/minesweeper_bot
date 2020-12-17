@@ -14,16 +14,19 @@ pub trait Game {
 
 
 impl InteractResult {
-    pub async fn reply_to(self, api: &Api, message: &Message) -> Result<Message, Error> {
+    pub async fn reply_to(self, api: &Api, message: &Message) -> Result<(), Error> {
         if let Some(text) = self.update_text {
             if let Some(board) = self.update_board {
-                api.send(message.edit_text(text).reply_markup(board)).await
+                api.send(message.edit_text(text).reply_markup(board)).await.map(|_| ())
             } else {
-                api.send(message.edit_text(text)).await
+                api.send(message.edit_text(text)).await.map(|_| ())
             }
         } else {
-            let board = self.update_board.unwrap();
-            api.send(message.edit_reply_markup(Some(board))).await
+            if let Some(board) = self.update_board {
+                api.send(message.edit_reply_markup(Some(board))).await.map(|_| ())
+            } else {
+                Ok(())
+            }
         }
     }
 }
