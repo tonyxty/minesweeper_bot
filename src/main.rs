@@ -5,13 +5,15 @@ use futures::StreamExt;
 use telegram_bot::*;
 
 use crate::game::{Coord, Game};
-use crate::grid_game::{CoopGame, GridGame};
+use crate::grid_game::GridGame;
 use crate::minesweeper::Minesweeper;
+use crate::coop_game::CoopGame;
 
 mod mine_field;
 mod minesweeper;
 mod grid_game;
 mod game;
+mod coop_game;
 
 fn parse_coord(s: Option<&str>) -> Option<Coord> {
     let mut iter = s?.split_whitespace();

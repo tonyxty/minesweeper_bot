@@ -49,6 +49,17 @@ impl GridGame for Minesweeper {
         format!("{}x{} {} mines", self.0.get_rows(), self.0.get_columns(), self.0.get_mines())
     }
 
+    fn to_inline_keyboard(&self) -> InlineKeyboardMarkup {
+        let mut inline_keyboard = InlineKeyboardMarkup::new();
+        for i in 0..self.0.get_rows() {
+            inline_keyboard.add_row(self.0.iter_row(i)
+                .enumerate()
+                .map(|(j, c)| InlineKeyboardButton::callback(to_char(c).to_string(), format!("{} {}", i, j)))
+                .collect());
+        }
+        inline_keyboard
+    }
+
     fn interact(&mut self, coord: Coord) -> bool {
         if !self.0.is_initialized() {
             self.0.initialize(coord);
@@ -59,17 +70,6 @@ impl GridGame for Minesweeper {
         } else {
             self.0.uncover_around(coord)
         }
-    }
-
-    fn to_inline_keyboard(&self) -> InlineKeyboardMarkup {
-        let mut inline_keyboard = InlineKeyboardMarkup::new();
-        for i in 0..self.0.get_rows() {
-            inline_keyboard.add_row(self.0.iter_row(i)
-                .enumerate()
-                .map(|(j, c)| InlineKeyboardButton::callback(to_char(c).to_string(), format!("{} {}", i, j)))
-                .collect());
-        }
-        inline_keyboard
     }
 }
 
