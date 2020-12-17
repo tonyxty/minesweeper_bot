@@ -11,3 +11,5 @@ rand = "*"
 futures = "*"
 tokio = { version = "*", features = ["full"] }
 telegram-bot = "*"
+hyper = "*"
+hyper-socks2 = "*"

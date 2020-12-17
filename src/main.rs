@@ -8,6 +8,12 @@ use crate::game::{Coord, Game};
 use crate::grid_game::GridGame;
 use crate::minesweeper::Minesweeper;
 use crate::coop_game::CoopGame;
+use telegram_bot::connector::Connector;
+use telegram_bot::connector::hyper::{HyperConnector, default_connector};
+use hyper::{Client, Uri};
+use hyper_socks2::SocksConnector;
+use hyper::client::HttpConnector;
+use std::convert::TryFrom;
 
 mod mine_field;
 mod minesweeper;
@@ -68,10 +74,25 @@ impl GameManager {
     }
 }
 
+fn socks5_connector(addr: String) -> Box<dyn Connector> {
+    let mut connector = HttpConnector::new();
+    connector.enforce_http(false);
+    Box::new(
+        HyperConnector::new(Client::builder().build(SocksConnector {
+            proxy_addr: Uri::try_from(addr).unwrap(),
+            auth: None,
+            connector,
+        }.with_tls().unwrap()))
+    )
+}
+
 #[tokio::main]
 async fn main() {
     let token = env::var("API_TOKEN").unwrap();
-    let api = Api::new(token);
+    let connector = env::var("PROXY")
+        .map_or_else(|_| default_connector().unwrap(), socks5_connector);
+
+    let api = Api::with_connector(token, connector);
     let mut stream = api.stream();
 
     let mut manager: GameManager = GameManager::new();
