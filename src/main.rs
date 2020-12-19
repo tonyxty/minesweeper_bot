@@ -1,25 +1,28 @@
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::env;
 
 use futures::StreamExt;
+use hyper::{Client, Uri};
+use hyper::client::HttpConnector;
+use hyper_socks2::SocksConnector;
 use telegram_bot::*;
+use telegram_bot::connector::Connector;
+use telegram_bot::connector::hyper::{default_connector, HyperConnector};
 
+use crate::coop_game::CoopGame;
 use crate::game::{Coord, Game};
 use crate::grid_game::GridGame;
 use crate::minesweeper::Minesweeper;
-use crate::coop_game::CoopGame;
-use telegram_bot::connector::Connector;
-use telegram_bot::connector::hyper::{HyperConnector, default_connector};
-use hyper::{Client, Uri};
-use hyper_socks2::SocksConnector;
-use hyper::client::HttpConnector;
-use std::convert::TryFrom;
+use crate::othello_game::OthelloGame;
 
 mod mine_field;
 mod minesweeper;
 mod grid_game;
 mod game;
 mod coop_game;
+mod othello;
+mod othello_game;
 
 fn parse_coord(s: Option<&str>) -> Option<Coord> {
     let mut iter = s?.split_whitespace();
@@ -44,14 +47,23 @@ impl<'a> GameManager<'a> {
     async fn handle_update(&mut self, update: Result<Update, Error>) -> Result<(), Error> {
         let update = update?;
         if let UpdateKind::Message(message) = update.kind {
-            if let MessageKind::Text { data: ref command, .. } = message.kind {
-                if command.starts_with("/mine") {
-                    let game = Minesweeper::from_command(command);
+            if let MessageKind::Text { ref data, ref entities, .. } = message.kind {
+                if data.starts_with("/mine") {
+                    let game = Minesweeper::from_command(data);
                     let reply = self.api.send(message
                         .text_reply(game.get_text())
                         .reply_markup(game.to_inline_keyboard())).await?;
                     if let MessageOrChannelPost::Message(reply) = reply {
                         self.running_games.insert((reply.chat.id(), reply.id), Box::new(CoopGame::new(game)));
+                    }
+                } else if data.starts_with("/othello") {
+                    if let Some((game, text, inline_keyboard)) = OthelloGame::from_message(data, entities, &message.from) {
+                        let reply = self.api.send(message
+                            .text_reply(text)
+                            .reply_markup(inline_keyboard)).await?;
+                        if let MessageOrChannelPost::Message(reply) = reply {
+                            self.running_games.insert((reply.chat.id(), reply.id), Box::new(game));
+                        }
                     }
                 }
             }
