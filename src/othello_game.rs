@@ -48,9 +48,9 @@ impl OthelloGame {
             }
         } else {
             if self.game.get_current_player() {
-                text += " ○";
+                text += " ⚪";
             } else {
-                text.insert_str(0, "● ");
+                text.insert_str(0, "⚫ ");
             }
         }
         text
@@ -90,6 +90,6 @@ impl Game for OthelloGame {
 fn to_char(piece: Option<bool>) -> char {
     match piece {
         None => { ' ' }
-        Some(b) => { if b { '○' } else { '●' } }
+        Some(b) => { if b { '⚪' } else { '⚫' } }
     }
 }
