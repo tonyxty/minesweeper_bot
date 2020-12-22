@@ -72,7 +72,7 @@ impl<'a> GameManager<'a> {
         } else if let UpdateKind::CallbackQuery(query) = update.kind {
             self.api.send(query.acknowledge()).await?;
             if let Some(coord) = parse_coord(query.data.as_ref().map(String::as_str)) {
-                if let MessageOrChannelPost::Message(message) = query.message.unwrap() {
+                if let Some(MessageOrChannelPost::Message(message)) = query.message {
                     if let Some(game) = self.running_games.get_mut(&(message.chat.id(), message.id)) {
                         if let Some(result) = game.interact(coord, &query.from) {
                             if result.game_end {
