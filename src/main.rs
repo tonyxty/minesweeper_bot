@@ -11,6 +11,7 @@ use telegram_bot::connector::Connector;
 use telegram_bot::connector::hyper::{default_connector, HyperConnector};
 
 use crate::coop_game::CoopGame;
+use crate::Error::BotError;
 use crate::game::{Coord, Game};
 use crate::minesweeper::Minesweeper;
 use crate::othello_game::OthelloGame;
@@ -35,6 +36,19 @@ struct GameManager<'a> {
     running_games: HashMap<(ChatId, MessageId), Box<dyn Game>>,
 }
 
+enum Error {
+    BotError(telegram_bot::Error),
+    InvalidCoord,
+    MessageTooOld,
+    NoSuchGame,
+}
+
+impl From<telegram_bot::Error> for Error {
+    fn from(error: telegram_bot::Error) -> Self {
+        BotError(error)
+    }
+}
+
 impl<'a> GameManager<'a> {
     fn new(api: &'a Api) -> GameManager<'a> {
         Self {
@@ -43,7 +57,7 @@ impl<'a> GameManager<'a> {
         }
     }
 
-    async fn handle_update(&mut self, update: Result<Update, Error>) -> Result<(), Error> {
+    async fn handle_update(&mut self, update: Result<Update, telegram_bot::Error>) -> Result<(), Error> {
         let update = update?;
         if let UpdateKind::Message(message) = update.kind {
             if let MessageKind::Text { ref data, ref entities, .. } = message.kind {
@@ -71,16 +85,14 @@ impl<'a> GameManager<'a> {
             }
         } else if let UpdateKind::CallbackQuery(query) = update.kind {
             self.api.send(query.acknowledge()).await?;
-            if let Some(coord) = parse_coord(query.data.as_ref().map(String::as_str)) {
-                if let Some(MessageOrChannelPost::Message(message)) = query.message {
-                    if let Some(game) = self.running_games.get_mut(&(message.chat.id(), message.id)) {
-                        if let Some(result) = game.interact(coord, &query.from) {
-                            if result.game_end {
-                                self.running_games.remove(&(message.chat.id(), message.id));
-                            }
-                            result.reply_to(self.api, &message).await?;
-                        }
+            let coord = parse_coord(query.data.as_ref().map(String::as_str)).ok_or(Error::InvalidCoord)?;
+            if let MessageOrChannelPost::Message(message) = query.message.ok_or(Error::MessageTooOld)? {
+                let game = self.running_games.get_mut(&(message.chat.id(), message.id)).ok_or(Error::NoSuchGame)?;
+                if let Some(result) = game.interact(coord, &query.from) {
+                    if result.game_end {
+                        self.running_games.remove(&(message.chat.id(), message.id));
                     }
+                    result.reply_to(self.api, &message).await?;
                 }
             }
         }
