@@ -12,7 +12,6 @@ use telegram_bot::connector::hyper::{default_connector, HyperConnector};
 
 use crate::coop_game::CoopGame;
 use crate::game::{Coord, Game};
-use crate::grid_game::GridGame;
 use crate::minesweeper::Minesweeper;
 use crate::othello_game::OthelloGame;
 
@@ -48,23 +47,26 @@ impl<'a> GameManager<'a> {
         let update = update?;
         if let UpdateKind::Message(message) = update.kind {
             if let MessageKind::Text { ref data, ref entities, .. } = message.kind {
+                // TODO: further encapsulate
+                let mut triple: Option<(Box<dyn Game>, String, InlineKeyboardMarkup)> = None;
                 if data.starts_with("/mine") {
-                    let game = Minesweeper::from_command(data);
-                    let reply = self.api.send(message
-                        .text_reply(game.get_text())
-                        .reply_markup(game.to_inline_keyboard())).await?;
-                    if let MessageOrChannelPost::Message(reply) = reply {
-                        self.running_games.insert((reply.chat.id(), reply.id), Box::new(CoopGame::new(game)));
-                    }
+                    let (game, text, inline_keyboard) = CoopGame::create(Minesweeper::from_command(data));
+                    triple = Some((Box::new(game), text, inline_keyboard));
                 } else if data.starts_with("/othello") {
                     if let Some((game, text, inline_keyboard)) = OthelloGame::from_message(data, entities, &message.from) {
-                        let reply = self.api.send(message
-                            .text_reply(text)
-                            .reply_markup(inline_keyboard)).await?;
-                        if let MessageOrChannelPost::Message(reply) = reply {
-                            self.running_games.insert((reply.chat.id(), reply.id), Box::new(game));
-                        }
+                        triple = Some((Box::new(game), text, inline_keyboard));
                     }
+                }
+
+                if let Some((game, text, inline_keyboard)) = triple {
+                    let reply = self.api.send(message
+                        .text_reply(text)
+                        .reply_markup(inline_keyboard)).await?;
+                    if let MessageOrChannelPost::Message(reply) = reply {
+                        self.running_games.insert((reply.chat.id(), reply.id), game);
+                    }
+                } else {
+                    self.api.send(message.text_reply("Command not understood.")).await?;
                 }
             }
         } else if let UpdateKind::CallbackQuery(query) = update.kind {
@@ -76,7 +78,7 @@ impl<'a> GameManager<'a> {
                             if result.game_end {
                                 self.running_games.remove(&(message.chat.id(), message.id));
                             }
-                            let _ = result.reply_to(self.api, &message).await;
+                            result.reply_to(self.api, &message).await?;
                         }
                     }
                 }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use telegram_bot::User;
+use telegram_bot::{User, InlineKeyboardMarkup};
 
 use crate::game::{Coord, Game, InteractResult};
 use crate::grid_game::{GameState, GridGame};
@@ -11,11 +11,13 @@ pub struct CoopGame<T: GridGame> {
 }
 
 impl<T: GridGame> CoopGame<T> {
-    pub fn new(game: T) -> Self {
-        Self {
+    pub fn create(game: T) -> (Self, String, InlineKeyboardMarkup) {
+        let text = game.get_text();
+        let inline_keyboard = game.to_inline_keyboard();
+        (Self {
             game,
             interactions: HashMap::new(),
-        }
+        }, text, inline_keyboard)
     }
 }
 
