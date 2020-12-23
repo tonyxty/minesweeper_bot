@@ -19,16 +19,13 @@ pub struct Minesweeper {
 }
 
 impl MinesweeperModes {
-    fn parse(s: &str) -> Self {
+    fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
-            "noflag" => MinesweeperModes::NoFlag,
-            _ => MinesweeperModes::Classic
+            "noflag" => Some(Self::NoFlag),
+            "classic" => Some(Self::Classic),
+            _ => None
         }
     }
-}
-
-fn parse_number(s: Option<&str>) -> Option<usize> {
-    str::parse(s?).ok()
 }
 
 impl Minesweeper {
@@ -37,17 +34,24 @@ impl Minesweeper {
         // 2 <= rows <= 10
         // 2 <= columns <= 8
         // 1 <= mines < rows * columns
-        let mut iter = data.split_whitespace().skip(1);
-        let mut rows = parse_number(iter.next()).unwrap_or(10);
-        if rows > 10 {
-            rows = 10;
+        let mut args = [10, 8, 0];
+        let mut mode = MinesweeperModes::Classic;
+        let mut i = 0;
+
+        for arg in data.split_whitespace().skip(1) {
+            if let Some(game_mode) = MinesweeperModes::parse(arg) {
+                mode = game_mode;
+            } else if i < 3 {
+                if let Ok(number) = arg.parse() {
+                    args[i] = number;
+                    i += 1;
+                }
+            }
         }
-        let mut columns = parse_number(iter.next()).unwrap_or(8);
-        if columns > 8 {
-            columns = 8;
-        }
-        let mines = parse_number(iter.next()).unwrap_or_else(|| rows * columns / 10);
-        let mode = iter.next().map_or(MinesweeperModes::Classic, MinesweeperModes::parse);
+
+        let rows = args[0];
+        let columns = args[1];
+        let mines = if args[2] < 1 { rows * columns / 10 } else { args[2] };
         Self {
             field: MineField::new(rows, columns, mines),
             mode,
