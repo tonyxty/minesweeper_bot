@@ -31,11 +31,6 @@ fn parse_coord(s: Option<&str>) -> Option<Coord> {
     Some((row, column))
 }
 
-struct GameManager<'a> {
-    api: &'a Api,
-    running_games: HashMap<(ChatId, MessageId), Box<dyn Game>>,
-}
-
 enum Error {
     BotError(telegram_bot::Error),
     InvalidCoord,
@@ -47,6 +42,23 @@ impl From<telegram_bot::Error> for Error {
     fn from(error: telegram_bot::Error) -> Self {
         BotError(error)
     }
+}
+
+fn create_game(data: &str, entities: &[MessageEntity], user: &User) -> Option<(Box<dyn Game>, String, InlineKeyboardMarkup)> {
+    if data.starts_with("/mine") {
+        let (game, text, inline_keyboard) = CoopGame::create(Minesweeper::from_command(data));
+        Some((Box::new(game), text, inline_keyboard))
+    } else if data.starts_with("/othello") {
+        let (game, text, inline_keyboard) = OthelloGame::from_message(data, entities, user)?;
+        Some((Box::new(game), text, inline_keyboard))
+    } else {
+        None
+    }
+}
+
+struct GameManager<'a> {
+    api: &'a Api,
+    running_games: HashMap<(ChatId, MessageId), Box<dyn Game>>,
 }
 
 impl<'a> GameManager<'a> {
@@ -61,18 +73,7 @@ impl<'a> GameManager<'a> {
         let update = update?;
         if let UpdateKind::Message(message) = update.kind {
             if let MessageKind::Text { ref data, ref entities, .. } = message.kind {
-                // TODO: further encapsulate
-                let mut triple: Option<(Box<dyn Game>, String, InlineKeyboardMarkup)> = None;
-                if data.starts_with("/mine") {
-                    let (game, text, inline_keyboard) = CoopGame::create(Minesweeper::from_command(data));
-                    triple = Some((Box::new(game), text, inline_keyboard));
-                } else if data.starts_with("/othello") {
-                    if let Some((game, text, inline_keyboard)) = OthelloGame::from_message(data, entities, &message.from) {
-                        triple = Some((Box::new(game), text, inline_keyboard));
-                    }
-                }
-
-                if let Some((game, text, inline_keyboard)) = triple {
+                if let Some((game, text, inline_keyboard)) = create_game(data, entities, &message.from) {
                     let reply = self.api.send(message
                         .text_reply(text)
                         .reply_markup(inline_keyboard)).await?;
