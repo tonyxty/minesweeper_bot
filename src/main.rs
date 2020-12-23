@@ -73,7 +73,10 @@ impl<'a> GameManager<'a> {
         let update = update?;
         if let UpdateKind::Message(message) = update.kind {
             if let MessageKind::Text { ref data, ref entities, .. } = message.kind {
-                if let Some((game, text, inline_keyboard)) = create_game(data, entities, &message.from) {
+                if data.starts_with("/stats") {
+                    let text = format!("{} running games.", self.running_games.len());
+                    self.api.send(message.text_reply(text)).await?;
+                } else if let Some((game, text, inline_keyboard)) = create_game(data, entities, &message.from) {
                     let reply = self.api.send(message
                         .text_reply(text)
                         .reply_markup(inline_keyboard)).await?;
