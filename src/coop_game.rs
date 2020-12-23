@@ -36,7 +36,7 @@ impl<T: GridGame> Game for CoopGame<T> {
             let state = self.game.get_state();
             if state == GameState::Normal {
                 Some(InteractResult {
-                    update_text: None,
+                    update_text: Some(self.game.get_text()),
                     update_board: Some(keyboard_markup),
                     game_end: false,
                 })

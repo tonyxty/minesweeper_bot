@@ -46,7 +46,7 @@ impl GridGame for Minesweeper {
     }
 
     fn get_text(&self) -> String {
-        format!("{}x{} {} mines", self.0.get_rows(), self.0.get_columns(), self.0.get_mines())
+        format!("{} x {}\n{} left / {} mines", self.0.get_rows(), self.0.get_columns(), self.0.get_stats().covered_mine, self.0.get_mines())
     }
 
     fn to_inline_keyboard(&self) -> InlineKeyboardMarkup {

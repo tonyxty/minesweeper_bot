@@ -118,16 +118,8 @@ impl Iterator for NeighborhoodCoordIterator {
 // Instead we provide an interface to access the current stats across the mine field.
 pub struct MineFieldStats {
     pub uncovered_blank: usize,
+    pub covered_mine: usize,
     pub exploded: usize,
-}
-
-impl MineFieldStats {
-    fn new() -> Self {
-        MineFieldStats {
-            uncovered_blank: 0,
-            exploded: 0,
-        }
-    }
 }
 
 pub struct MineField {
@@ -155,7 +147,11 @@ impl MineField {
             rows,
             columns,
             mines,
-            stats: MineFieldStats::new(),
+            stats: MineFieldStats {
+                uncovered_blank: 0,
+                covered_mine: mines,
+                exploded: 0,
+            },
         }
     }
 
@@ -231,7 +227,9 @@ impl MineField {
             let index = self.get_index(coord);
             if self.field[index].is_covered() {
                 self.field[index].status = Uncovered;
-                if !self.field[index].is_mine() {
+                if self.field[index].is_mine() {
+                    self.stats.covered_mine -= 1;
+                } else {
                     self.stats.uncovered_blank += 1;
                 }
                 if self.field[index].value == 0 {
