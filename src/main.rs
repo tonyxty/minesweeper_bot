@@ -75,7 +75,7 @@ fn filter_command<'a>(command: &'a str, bot_name: &str, is_private_chat: bool) -
 
 fn create_game(data: &str, entities: &[MessageEntity], user: &User) -> Option<(Box<dyn Game>, String, InlineKeyboardMarkup)> {
     if data.starts_with("/mine") {
-        let (game, text, inline_keyboard) = CoopGame::create(Minesweeper::from_command(data));
+        let (game, text, inline_keyboard) = CoopGame::create(Minesweeper::from_message(data));
         Some((Box::new(game), text, inline_keyboard))
     } else if data.starts_with("/othello") {
         let (game, text, inline_keyboard) = OthelloGame::from_message(data, entities, user)?;

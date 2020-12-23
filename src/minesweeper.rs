@@ -7,19 +7,37 @@ use crate::grid_game::{GameState, GridGame};
 use crate::grid_game::GameState::{GameOver, Normal, Solved};
 use crate::mine_field::{Cell, MineField};
 
-pub struct Minesweeper(MineField);
+#[derive(Eq, PartialEq)]
+pub enum MinesweeperModes {
+    Classic,
+    NoFlag,
+}
+
+pub struct Minesweeper {
+    field: MineField,
+    mode: MinesweeperModes,
+}
+
+impl MinesweeperModes {
+    fn parse(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "noflag" => MinesweeperModes::NoFlag,
+            _ => MinesweeperModes::Classic
+        }
+    }
+}
 
 fn parse_number(s: Option<&str>) -> Option<usize> {
     str::parse(s?).ok()
 }
 
 impl Minesweeper {
-    pub fn from_command(command: &str) -> Self {
+    pub fn from_message(data: &str) -> Self {
         // constraints:
         // 2 <= rows <= 10
         // 2 <= columns <= 8
         // 1 <= mines < rows * columns
-        let mut iter = command.split_whitespace().skip(1);
+        let mut iter = data.split_whitespace().skip(1);
         let mut rows = parse_number(iter.next()).unwrap_or(10);
         if rows > 10 {
             rows = 10;
@@ -29,16 +47,20 @@ impl Minesweeper {
             columns = 8;
         }
         let mines = parse_number(iter.next()).unwrap_or_else(|| rows * columns / 10);
-        Self(MineField::new(rows, columns, mines))
+        let mode = iter.next().map_or(MinesweeperModes::Classic, MinesweeperModes::parse);
+        Self {
+            field: MineField::new(rows, columns, mines),
+            mode,
+        }
     }
 }
 
 impl GridGame for Minesweeper {
     fn get_state(&self) -> GameState {
-        let stats = self.0.get_stats();
+        let stats = self.field.get_stats();
         if stats.exploded > 0 {
             GameOver
-        } else if stats.uncovered_blank + self.0.get_mines() == self.0.get_rows() * self.0.get_columns() {
+        } else if stats.uncovered_blank + self.field.get_mines() == self.field.get_rows() * self.field.get_columns() {
             Solved
         } else {
             Normal
@@ -46,13 +68,14 @@ impl GridGame for Minesweeper {
     }
 
     fn get_text(&self) -> String {
-        format!("{} x {}\n{} left / {} mines", self.0.get_rows(), self.0.get_columns(), self.0.get_stats().covered_mine, self.0.get_mines())
+        format!("{} x {}\n{} left / {} mines", self.field.get_rows(), self.field.get_columns(),
+                self.field.get_stats().covered_mine, self.field.get_mines())
     }
 
     fn to_inline_keyboard(&self) -> InlineKeyboardMarkup {
         let mut inline_keyboard = InlineKeyboardMarkup::new();
-        for i in 0..self.0.get_rows() {
-            inline_keyboard.add_row(self.0.iter_row(i)
+        for i in 0..self.field.get_rows() {
+            inline_keyboard.add_row(self.field.iter_row(i)
                 .enumerate()
                 .map(|(j, c)| InlineKeyboardButton::callback(to_char(c).to_string(), format!("{} {}", i, j)))
                 .collect());
@@ -61,14 +84,14 @@ impl GridGame for Minesweeper {
     }
 
     fn interact(&mut self, coord: Coord) -> bool {
-        if !self.0.is_initialized() {
-            self.0.initialize(coord);
+        if !self.field.is_initialized() {
+            self.field.initialize(coord);
         }
-        if self.0.get(coord).is_covered() {
-            self.0.uncover(coord);
+        if self.field.get(coord).is_covered() {
+            self.field.uncover(coord);
             true
         } else {
-            self.0.uncover_around(coord)
+            self.mode == MinesweeperModes::Classic && self.field.uncover_around(coord)
         }
     }
 }
