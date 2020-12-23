@@ -1,3 +1,5 @@
+#![feature(str_split_once)]
+
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::env;
@@ -33,6 +35,7 @@ fn parse_coord(s: Option<&str>) -> Option<Coord> {
 
 enum Error {
     BotError(telegram_bot::Error),
+    NoCommand,
     InvalidCoord,
     MessageTooOld,
     NoSuchGame,
@@ -41,6 +44,32 @@ enum Error {
 impl From<telegram_bot::Error> for Error {
     fn from(error: telegram_bot::Error) -> Self {
         BotError(error)
+    }
+}
+
+
+fn find_command<'a>(data: &'a str, entities: &[MessageEntity]) -> Option<&'a str> {
+    for entity in entities {
+        if entity.kind == MessageEntityKind::BotCommand {
+            return Some(&data[entity.offset as usize..(entity.offset + entity.length) as usize]);
+        }
+    }
+    None
+}
+
+fn filter_command<'a>(command: &'a str, bot_name: &str, is_private_chat: bool) -> Option<&'a str> {
+    if let Some((command, name)) = command.split_once('@') {
+        if is_private_chat || name == bot_name {
+            Some(command)
+        } else {
+            None
+        }
+    } else {
+        if is_private_chat {
+            Some(command)
+        } else {
+            None
+        }
     }
 }
 
@@ -56,15 +85,19 @@ fn create_game(data: &str, entities: &[MessageEntity], user: &User) -> Option<(B
     }
 }
 
+
 struct GameManager<'a> {
     api: &'a Api,
+    bot_name: String,
     running_games: HashMap<(ChatId, MessageId), Box<dyn Game>>,
 }
 
 impl<'a> GameManager<'a> {
-    fn new(api: &'a Api) -> GameManager<'a> {
+    async fn new(api: &'a Api) -> GameManager<'a> {
+        let me = api.send(GetMe).await.unwrap();
         Self {
             api,
+            bot_name: me.username.unwrap(),
             running_games: HashMap::new(),
         }
     }
@@ -73,7 +106,15 @@ impl<'a> GameManager<'a> {
         let update = update?;
         if let UpdateKind::Message(message) = update.kind {
             if let MessageKind::Text { ref data, ref entities, .. } = message.kind {
-                if data.starts_with("/stats") {
+                let is_private_chat = match message.chat {
+                    MessageChat::Private(_) => { true }
+                    _ => { false }
+                };
+                let command = filter_command(
+                    find_command(data, entities).ok_or(Error::NoCommand)?,
+                    &self.bot_name, is_private_chat).ok_or(Error::NoCommand)?;
+
+                if command.starts_with("/stats") {
                     let text = format!("{} running games.", self.running_games.len());
                     self.api.send(message.text_reply(text)).await?;
                 } else if let Some((game, text, inline_keyboard)) = create_game(data, entities, &message.from) {
@@ -125,7 +166,7 @@ async fn main() {
     let api = Api::with_connector(token, connector);
     let mut stream = api.stream();
 
-    let mut manager: GameManager = GameManager::new(&api);
+    let mut manager: GameManager = GameManager::new(&api).await;
 
     while let Some(update) = stream.next().await {
         let _ = manager.handle_update(update).await;
