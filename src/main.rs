@@ -1,4 +1,5 @@
 #![feature(str_split_once)]
+#![feature(box_syntax)]
 
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -76,10 +77,10 @@ fn filter_command<'a>(command: &'a str, bot_name: &str, is_private_chat: bool) -
 fn create_game(data: &str, entities: &[MessageEntity], user: &User) -> Option<(Box<dyn Game>, String, InlineKeyboardMarkup)> {
     if data.starts_with("/mine") {
         let (game, text, inline_keyboard) = CoopGame::create(Minesweeper::from_message(data));
-        Some((Box::new(game), text, inline_keyboard))
+        Some((box game, text, inline_keyboard))
     } else if data.starts_with("/othello") {
         let (game, text, inline_keyboard) = OthelloGame::from_message(data, entities, user)?;
-        Some((Box::new(game), text, inline_keyboard))
+        Some((box game, text, inline_keyboard))
     } else {
         None
     }
@@ -148,13 +149,11 @@ impl<'a> GameManager<'a> {
 fn socks5_connector(addr: String) -> Box<dyn Connector> {
     let mut connector = HttpConnector::new();
     connector.enforce_http(false);
-    Box::new(
-        HyperConnector::new(Client::builder().build(SocksConnector {
-            proxy_addr: Uri::try_from(addr).unwrap(),
-            auth: None,
-            connector,
-        }.with_tls().unwrap()))
-    )
+    box HyperConnector::new(Client::builder().build(SocksConnector {
+        proxy_addr: Uri::try_from(addr).unwrap(),
+        auth: None,
+        connector,
+    }.with_tls().unwrap()))
 }
 
 #[tokio::main]
