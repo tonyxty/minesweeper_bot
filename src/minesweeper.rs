@@ -1,4 +1,5 @@
 use std::char;
+use std::cmp;
 
 use telegram_bot::{InlineKeyboardButton, InlineKeyboardMarkup};
 
@@ -49,8 +50,8 @@ impl Minesweeper {
             }
         }
 
-        let rows = args[0];
-        let columns = args[1];
+        let rows = cmp::min(args[0], 10);
+        let columns = cmp::min(args[1], 8);
         let mines = if args[2] < 1 { rows * columns / 10 } else { args[2] };
         Self {
             field: MineField::new(rows, columns, mines),
