@@ -37,10 +37,10 @@ impl Default for Cell {
 fn neighborhood_of(coord: Coord, rows: u32, columns: u32) -> impl Iterator<Item=Coord> {
     iproduct!(-1..=1, -1..=1)
         .filter_map(move |(i, j)|
-            (i != 0 || j != 0).then_some((coord.0 as i32 + i, coord.1 as i32 + j)))
+            (i != 0 || j != 0).then_some((coord.0 + i, coord.1 + j)))
         .filter_map(move |(row, column)|
             ((0..rows as i32).contains(&row) && (0..columns as i32).contains(&column))
-                .then_some(Coord(row as u32, column as u32)))
+                .then_some(Coord(row, column)))
 }
 
 // "state" (win/loss) is not part of the MineField struct because we may support other modes of
@@ -97,7 +97,7 @@ impl MineField {
     }
 
     fn get_index(&self, coord: Coord) -> usize {
-        (coord.0 * self.columns + coord.1) as _
+        (coord.0 as u32 * self.columns + coord.1 as u32) as _
     }
 
     pub fn get(&self, coord: Coord) -> &Cell {
@@ -123,8 +123,8 @@ impl MineField {
             }
             self.field[i].value = Mine;
         }
-        for i in 0..self.rows {
-            for j in 0..self.columns {
+        for i in 0..self.rows as _ {
+            for j in 0..self.columns as _ {
                 let coord = Coord(i, j);
                 let index = self.get_index(coord);
                 if self.field[index].value != Mine {

@@ -5,7 +5,7 @@ use telegram_bot::*;
 use thiserror::Error;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
-pub struct Coord(pub u32, pub u32);
+pub struct Coord(pub i32, pub i32);
 
 #[derive(Error, Debug)]
 pub enum ParseCoordError {
