@@ -21,12 +21,10 @@ impl InteractResult {
             } else {
                 api.send(message.edit_text(text)).await.map(|_| ())
             }
+        } else if let Some(board) = self.update_board {
+            api.send(message.edit_reply_markup(Some(board))).await.map(|_| ())
         } else {
-            if let Some(board) = self.update_board {
-                api.send(message.edit_reply_markup(Some(board))).await.map(|_| ())
-            } else {
-                Ok(())
-            }
+            Ok(())
         }
     }
 }

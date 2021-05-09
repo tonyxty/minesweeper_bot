@@ -58,12 +58,10 @@ impl<T: GridGame> Game for CoopGame<T> {
                     } else {
                         summary += format!("Boom, {} is dead!", username).as_str();
                     }
+                } else if state == GameState::Solved {
+                    summary += format!("{} has snatched it from {}!", username, top_contributor).as_str();
                 } else {
-                    if state == GameState::Solved {
-                        summary += format!("{} has snatched it from {}!", username, top_contributor).as_str();
-                    } else {
-                        summary += format!("{} has ruined it for {}!", username, top_contributor).as_str();
-                    }
+                    summary += format!("{} has ruined it for {}!", username, top_contributor).as_str();
                 }
 
                 Some(InteractResult {

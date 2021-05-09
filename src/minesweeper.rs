@@ -1,12 +1,11 @@
-use std::char;
-use std::cmp;
+use std::str::FromStr;
 
 use telegram_bot::{InlineKeyboardButton, InlineKeyboardMarkup};
 
 use crate::game::Coord;
 use crate::grid_game::{GameState, GridGame};
 use crate::grid_game::GameState::{GameOver, Normal, Solved};
-use crate::mine_field::{Cell, MineField};
+use crate::mine_field::{Cell, MineField, State, CellValue};
 
 #[derive(Eq, PartialEq)]
 pub enum MinesweeperModes {
@@ -19,12 +18,14 @@ pub struct Minesweeper {
     mode: MinesweeperModes,
 }
 
-impl MinesweeperModes {
-    fn parse(s: &str) -> Option<Self> {
+impl FromStr for MinesweeperModes {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "noflag" => Some(Self::NoFlag),
-            "classic" => Some(Self::Classic),
-            _ => None
+            "noflag" => Ok(Self::NoFlag),
+            "classic" => Ok(Self::Classic),
+            _ => Err(()),
         }
     }
 }
@@ -35,24 +36,21 @@ impl Minesweeper {
         // 2 <= rows <= 10
         // 2 <= columns <= 8
         // 1 <= mines < rows * columns
-        let mut args = [10, 8, 0];
+        let mut args = Vec::<usize>::new();
         let mut mode = MinesweeperModes::Classic;
-        let mut i = 0;
 
         for arg in data.split_whitespace().skip(1) {
-            if let Some(game_mode) = MinesweeperModes::parse(arg) {
+            if let Ok(game_mode) = arg.parse() {
                 mode = game_mode;
-            } else if i < 3 {
-                if let Ok(number) = arg.parse() {
-                    args[i] = number;
-                    i += 1;
-                }
+            } else if let Ok(num) = arg.parse() {
+                args.push(num);
+                if args.len() >= 3 { break; }
             }
         }
 
-        let rows = cmp::min(args[0], 10);
-        let columns = cmp::min(args[1], 8);
-        let mines = if args[2] < 1 { rows * columns / 10 } else { args[2] };
+        let rows = args.get(0).copied().unwrap_or(10).min(10);
+        let columns = args.get(1).copied().unwrap_or(8).min(8);
+        let mines = args.get(2).copied().unwrap_or_else(|| rows * columns / 10);
         Self {
             field: MineField::new(rows, columns, mines),
             mode,
@@ -82,7 +80,7 @@ impl GridGame for Minesweeper {
         for i in 0..self.field.get_rows() {
             inline_keyboard.add_row(self.field.iter_row(i)
                 .enumerate()
-                .map(|(j, c)| InlineKeyboardButton::callback(to_char(c).to_string(), format!("{} {}", i, j)))
+                .map(|(j, c)| InlineKeyboardButton::callback(to_string(c), format!("{} {}", i, j)))
                 .collect());
         }
         inline_keyboard
@@ -92,7 +90,7 @@ impl GridGame for Minesweeper {
         if !self.field.is_initialized() {
             self.field.initialize(coord);
         }
-        if self.field.get(coord).is_covered() {
+        if self.field.get(coord).state == State::Covered {
             self.field.uncover(coord);
             true
         } else {
@@ -101,16 +99,20 @@ impl GridGame for Minesweeper {
     }
 }
 
-fn to_char(cell: &Cell) -> char {
-    if cell.is_exploded() {
-        '💣'
-    } else if cell.is_covered() {
-        '■'
-    } else if cell.is_mine() {
-        '🚩'
-    } else if cell.get_value() == 0 {
-        ' '
-    } else {
-        char::from_digit(cell.get_value(), 10).unwrap()
+fn to_string<'a>(cell: &Cell) -> &'a str {
+    use State::*;
+    use CellValue::*;
+    match cell.state {
+        Covered => "■",
+        Exploded => "💣",
+        Uncovered => match cell.value {
+            Mine => "🚩",
+            Number(n) => if n == 0 {
+                " "
+            } else {
+                let n = n as usize;
+                &"123456789"[n-1 .. n]
+            },
+        }
     }
 }

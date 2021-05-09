@@ -76,7 +76,7 @@ impl Othello {
                 }
             }
         }
-        return if valid { Some(anchor) } else { None };
+        valid.then_some(anchor)
     }
 
     fn capture(&mut self, coord: (i32, i32), direction: (i32, i32)) -> bool {

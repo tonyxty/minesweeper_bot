@@ -2,50 +2,33 @@ use std::collections::vec_deque::VecDeque;
 use std::iter::once;
 
 use crate::game::Coord;
-use crate::mine_field::CellStatus::{Covered, Exploded, Uncovered};
 
 // In our UI there is no flagging & unflagging; a cell with mine is uncovered when the player
 // decided to "uncover-around" an adjacent cell.  But we use an enum here for extensibility.
-#[derive(Clone, Eq, PartialEq)]
-enum CellStatus {
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum State {
     Covered,
     Uncovered,
     Exploded,
 }
 
-#[derive(Clone)]
-pub struct Cell {
-    value: i32, // -1 for mines
-    status: CellStatus,
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum CellValue {
+    Mine,
+    Number(u32),
 }
 
-impl Cell {
-    pub fn new() -> Self {
-        Self { value: 0, status: Covered }
-    }
+#[derive(Clone)]
+pub struct Cell {
+    pub value: CellValue,
+    pub state: State,
+}
 
-    pub fn is_mine(&self) -> bool {
-        self.value < 0
-    }
-
-    pub fn get_value(&self) -> u32 {
-        self.value as u32
-    }
-
-    pub fn is_covered(&self) -> bool {
-        self.status == Covered
-    }
-
-    pub fn is_uncovered(&self) -> bool {
-        self.status == Uncovered
-    }
-
-    pub fn is_exploded(&self) -> bool {
-        self.status == Exploded
-    }
-
-    fn set_mine(&mut self) {
-        self.value = -1;
+use CellValue::*;
+use State::*;
+impl Default for Cell {
+    fn default() -> Self {
+        Self { value: Number(0), state: Covered }
     }
 }
 
@@ -93,7 +76,7 @@ impl Iterator for NeighborhoodCoordIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.exhausted {
-            return None;
+            None
         } else {
             if self.current == self.center {
                 self.move_next();
@@ -133,17 +116,12 @@ pub struct MineField {
 
 impl MineField {
     pub fn new(rows: usize, columns: usize, mines: usize) -> Self {
-        let rows = if rows < 2 { 2 } else { rows };
-        let columns = if columns < 2 { 2 } else { columns };
-        let mut mines = mines;
-        if mines < 1 {
-            mines = 1;
-        } else if mines >= rows * columns {
-            mines = rows * columns - 1;
-        }
+        let rows = rows.max(2);
+        let columns = columns.max(2);
+        let mines = mines.clamp(1, rows * columns - 1);
         Self {
             initialized: false,
-            field: vec![Cell::new(); columns * rows],
+            field: Vec::new(),
             rows,
             columns,
             mines,
@@ -194,23 +172,24 @@ impl MineField {
     }
 
     pub fn initialize(&mut self, avoid: Coord) {
+        self.field = vec![Cell::default(); self.columns * self.rows];
         let avoid_index = self.get_index(avoid);
         let mut rng = rand::thread_rng();
         for mut i in rand::seq::index::sample(&mut rng, self.columns * self.rows - 1, self.mines).into_iter() {
             if i >= avoid_index {
                 i += 1;
             }
-            self.field[i].set_mine();
+            self.field[i].value = Mine;
         }
         for i in 0..self.rows {
             for j in 0..self.columns {
                 let coord = (i, j);
                 let index = self.get_index(coord);
-                if !self.field[index].is_mine() {
+                if self.field[index].value != Mine {
                     let value = self.iter_neighborhood(coord)
-                        .filter(|c| c.is_mine())
-                        .count() as i32;
-                    self.field[index].value = value;
+                        .filter(|c| c.value != Mine)
+                        .count() as u32;
+                    self.field[index].value = Number(value);
                 }
             }
         }
@@ -225,16 +204,16 @@ impl MineField {
         queue.extend(coords);
         while let Some(coord) = queue.pop_front() {
             let index = self.get_index(coord);
-            if self.field[index].is_covered() {
-                self.field[index].status = Uncovered;
-                if self.field[index].is_mine() {
+            if self.field[index].state == Covered {
+                self.field[index].state = Uncovered;
+                if self.field[index].value == Mine {
                     self.stats.covered_mine -= 1;
                 } else {
                     self.stats.uncovered_blank += 1;
                 }
-                if self.field[index].value == 0 {
+                if self.field[index].value == Number(0) {
                     queue.extend(NeighborhoodCoordIterator::new(self.rows, self.columns, coord)
-                        .filter(|i| self.get(*i).is_covered()));
+                        .filter(|&i| self.get(i).state == Covered));
                 }
             }
         }
@@ -247,41 +226,42 @@ impl MineField {
     // simple actions
     pub fn uncover(&mut self, coord: Coord) {
         let index = self.get_index(coord);
-        if self.field[index].is_mine() {
+        if self.field[index].value == Mine {
             self.stats.exploded += 1;
-            self.field[index].status = Exploded;
+            self.field[index].state = Exploded;
         } else {
             self.reveal(once(coord));
         }
     }
 
+    // uncovers around cell, returns true if the field has changed
     pub fn uncover_around(&mut self, coord: Coord) -> bool {
         let index = self.get_index(coord);
-        if self.field[index].is_mine() {
-            return false;
-        }
-        // count the number of adjacent covered cells and adjacent uncovered mine cells
-        // there are certainly iterator chains that can do this in one statement
-        // but a loop seems more readable
-        let mut covered = 0;
-        let mut uncovered_mines = 0;
-        for c in self.iter_neighborhood(coord) {
-            if c.is_uncovered() {
-                uncovered_mines += c.is_mine() as u32;
-            } else {
-                covered += 1;
+        match self.field[index].value {
+            Mine => false,
+            Number(value) => {
+                // count the number of adjacent covered cells and adjacent uncovered mine cells
+                // there are certainly iterator chains that can do this in one statement but
+                // a loop seems more readable
+                let mut covered = 0;
+                let mut uncovered_mines = 0;
+                for c in self.iter_neighborhood(coord) {
+                    if c.state == Uncovered {
+                        if c.value == Mine { uncovered_mines += 1; }
+                    } else {
+                        covered += 1;
+                    }
+                }
+                if covered == 0 {
+                    false
+                } else if uncovered_mines == value || covered + uncovered_mines == value {
+                    // reveal all adjacent cells
+                    self.reveal_around(coord);
+                    true
+                } else {
+                    false
+                }
             }
-        }
-        if covered == 0 {
-            return false;
-        }
-        let value = self.field[index].get_value();
-        if uncovered_mines == value || covered + uncovered_mines == value {
-            // reveal all adjacent cells
-            self.reveal_around(coord);
-            true
-        } else {
-            false
         }
     }
 }

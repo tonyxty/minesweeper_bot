@@ -1,13 +1,14 @@
-#![feature(str_split_once)]
 #![feature(box_syntax)]
+#![feature(bool_to_option)]
+#![feature(option_result_contains)]
 
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::env;
 
 use futures::StreamExt;
-use hyper::{Client, Uri};
-use hyper::client::HttpConnector;
+use hyper::Uri;
+use hyper::client::{Client, HttpConnector};
 use hyper_socks2::SocksConnector;
 use telegram_bot::*;
 use telegram_bot::connector::Connector;
@@ -49,28 +50,11 @@ impl From<telegram_bot::Error> for Error {
 }
 
 
-fn find_command<'a>(data: &'a str, entities: &[MessageEntity]) -> Option<&'a str> {
-    for entity in entities {
-        if entity.kind == MessageEntityKind::BotCommand {
-            return Some(&data[entity.offset as usize..(entity.offset + entity.length) as usize]);
-        }
-    }
-    None
-}
-
 fn filter_command<'a>(command: &'a str, bot_name: &str, is_private_chat: bool) -> Option<&'a str> {
     if let Some((command, name)) = command.split_once('@') {
-        if is_private_chat || name == bot_name {
-            Some(command)
-        } else {
-            None
-        }
+        (is_private_chat || name == bot_name).then_some(command)
     } else {
-        if is_private_chat {
-            Some(command)
-        } else {
-            None
-        }
+        is_private_chat.then_some(command)
     }
 }
 
@@ -107,13 +91,13 @@ impl<'a> GameManager<'a> {
         let update = update?;
         if let UpdateKind::Message(message) = update.kind {
             if let MessageKind::Text { ref data, ref entities, .. } = message.kind {
-                let is_private_chat = match message.chat {
-                    MessageChat::Private(_) => { true }
-                    _ => { false }
-                };
-                let command = filter_command(
-                    find_command(data, entities).ok_or(Error::NoCommand)?,
-                    &self.bot_name, is_private_chat).ok_or(Error::NoCommand)?;
+                let is_private_chat = matches!(message.chat, MessageChat::Private(_));
+
+                let command = entities.iter()
+                    .find(|x| x.kind == MessageEntityKind::BotCommand)
+                    .map(|x| &data[x.offset as usize..(x.offset + x.length) as usize]).ok_or(Error::NoCommand)?;
+                let command =
+                    filter_command(command, &self.bot_name, is_private_chat).ok_or(Error::NoCommand)?;
 
                 if command.starts_with("/stats") {
                     let text = format!("{} running games.", self.running_games.len());
@@ -131,7 +115,7 @@ impl<'a> GameManager<'a> {
             }
         } else if let UpdateKind::CallbackQuery(query) = update.kind {
             self.api.send(query.acknowledge()).await?;
-            let coord = parse_coord(query.data.as_ref().map(String::as_str)).ok_or(Error::InvalidCoord)?;
+            let coord = parse_coord(query.data.as_deref()).ok_or(Error::InvalidCoord)?;
             if let MessageOrChannelPost::Message(message) = query.message.ok_or(Error::MessageTooOld)? {
                 let game = self.running_games.get_mut(&(message.chat.id(), message.id)).ok_or(Error::NoSuchGame)?;
                 if let Some(result) = game.interact(coord, &query.from) {
@@ -165,7 +149,7 @@ async fn main() {
     let api = Api::with_connector(token, connector);
     let mut stream = api.stream();
 
-    let mut manager: GameManager = GameManager::new(&api).await;
+    let mut manager = GameManager::new(&api).await;
 
     while let Some(update) = stream.next().await {
         let _ = manager.handle_update(update).await;

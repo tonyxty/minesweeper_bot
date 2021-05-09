@@ -8,8 +8,8 @@ edition = "2018"
 
 [dependencies]
 rand = "*"
-futures = "*"
-tokio = { version = "*", features = ["full"] }
-telegram-bot = "*"
-hyper = "*"
-hyper-socks2 = "*"
+futures = "0.3"
+tokio = { version = "0.2", features = ["full"] }
+telegram-bot = { git = "https://github.com/ayrat555/telegram-bot", branch = "ayrat555/api-fixes-10" } 
+hyper = "0.13"
+hyper-socks2 = "0.5"
