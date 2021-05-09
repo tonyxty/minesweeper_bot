@@ -26,6 +26,7 @@ impl FromStr for Coord {
     }
 }
 
+#[derive(Default)]
 pub struct InteractResult {
     pub update_text: Option<String>,
     pub update_board: Option<InlineKeyboardMarkup>,
@@ -41,14 +42,13 @@ impl InteractResult {
     pub async fn reply_to(self, api: &Api, message: &Message) -> Result<(), Error> {
         if let Some(text) = self.update_text {
             if let Some(board) = self.update_board {
-                api.send(message.edit_text(text).reply_markup(board)).await.map(|_| ())
+                api.send(message.edit_text(text).reply_markup(board)).await?;
             } else {
-                api.send(message.edit_text(text)).await.map(|_| ())
+                api.send(message.edit_text(text)).await?;
             }
         } else if let Some(board) = self.update_board {
-            api.send(message.edit_reply_markup(Some(board))).await.map(|_| ())
-        } else {
-            Ok(())
+            api.send(message.edit_reply_markup(Some(board))).await?;
         }
+        Ok(())
     }
 }

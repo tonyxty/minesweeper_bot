@@ -5,6 +5,7 @@ use telegram_bot::{User, InlineKeyboardMarkup};
 use crate::game::{Coord, Game, InteractResult};
 use crate::grid_game::{GameState, GridGame};
 
+// Wraps a cooperative game and implements interaction stats
 pub struct CoopGame<T: GridGame> {
     game: T,
     interactions: HashMap<String, u32>,
@@ -23,23 +24,18 @@ impl<T: GridGame> CoopGame<T> {
 
 impl<T: GridGame> Game for CoopGame<T> {
     fn interact(&mut self, coord: Coord, user: &User) -> Option<InteractResult> {
-        if self.game.interact(coord) {
+        self.game.interact(coord).then_some({
             let username = user.username.as_ref().unwrap_or(&user.first_name);
-            let value = self.interactions.get_mut(username);
-            if let Some(x) = value {
-                *x += 1;
-            } else {
-                self.interactions.insert(username.into(), 1);
-            }
+            *self.interactions.entry(username.to_owned()).or_default() += 1;
 
             let keyboard_markup = self.game.to_inline_keyboard();
             let state = self.game.get_state();
             if state == GameState::Normal {
-                Some(InteractResult {
+                InteractResult {
                     update_text: Some(self.game.get_text()),
                     update_board: Some(keyboard_markup),
                     game_end: false,
-                })
+                }
             } else {
                 let mut summary = String::with_capacity(self.interactions.len() * 10);
                 let mut largest_count = 0;
@@ -64,14 +60,12 @@ impl<T: GridGame> Game for CoopGame<T> {
                     summary += format!("{} has ruined it for {}!", username, top_contributor).as_str();
                 }
 
-                Some(InteractResult {
+                InteractResult {
                     update_text: Some(summary),
                     update_board: Some(keyboard_markup),
                     game_end: true,
-                })
+                }
             }
-        } else {
-            None
-        }
+        })
     }
 }

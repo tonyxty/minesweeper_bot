@@ -8,17 +8,17 @@ use crate::grid_game::GameState::{GameOver, Normal, Solved};
 use crate::mine_field::{Cell, MineField, State, CellValue};
 
 #[derive(Eq, PartialEq)]
-pub enum MinesweeperModes {
+pub enum MinesweeperMode {
     Classic,
     NoFlag,
 }
 
 pub struct Minesweeper {
     field: MineField,
-    mode: MinesweeperModes,
+    mode: MinesweeperMode,
 }
 
-impl FromStr for MinesweeperModes {
+impl FromStr for MinesweeperMode {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -37,7 +37,7 @@ impl Minesweeper {
         // 2 <= columns <= 8
         // 1 <= mines < rows * columns
         let mut args = Vec::new();
-        let mut mode = MinesweeperModes::Classic;
+        let mut mode = MinesweeperMode::Classic;
 
         for arg in data.split_whitespace().skip(1) {
             if let Ok(game_mode) = arg.parse() {
@@ -60,10 +60,10 @@ impl Minesweeper {
 
 impl GridGame for Minesweeper {
     fn get_state(&self) -> GameState {
-        let stats = self.field.get_stats();
+        let stats = &self.field.stats;
         if stats.exploded > 0 {
             GameOver
-        } else if stats.uncovered_blank + self.field.get_mines() == self.field.get_rows() * self.field.get_columns() {
+        } else if stats.uncovered_blank + self.field.mines == self.field.rows * self.field.columns {
             Solved
         } else {
             Normal
@@ -71,30 +71,29 @@ impl GridGame for Minesweeper {
     }
 
     fn get_text(&self) -> String {
-        format!("{} x {}\n{} left / {} mines", self.field.get_rows(), self.field.get_columns(),
-                self.field.get_stats().covered_mine, self.field.get_mines())
+        format!("{} x {}\n{} left / {} mines", self.field.rows, self.field.columns,
+            self.field.stats.covered_mine, self.field.mines)
     }
 
     fn to_inline_keyboard(&self) -> InlineKeyboardMarkup {
-        let mut inline_keyboard = InlineKeyboardMarkup::new();
-        for i in 0..self.field.get_rows() {
-            inline_keyboard.add_row(self.field.iter_row(i)
+        self.field.iter()
+            .enumerate()
+            .map(|(i, row)| row.iter()
                 .enumerate()
                 .map(|(j, c)| InlineKeyboardButton::callback(to_string(c), format!("{} {}", i, j)))
-                .collect());
-        }
-        inline_keyboard
+                .collect())
+            .collect::<Vec<Vec<_>>>().into()
     }
 
     fn interact(&mut self, coord: Coord) -> bool {
         if !self.field.initialized {
             self.field.initialize(coord);
         }
-        if self.field.get(coord).state == State::Covered {
+        if self.field[coord].state == State::Covered {
             self.field.uncover(coord);
             true
         } else {
-            self.mode == MinesweeperModes::Classic && self.field.uncover_around(coord)
+            self.mode == MinesweeperMode::Classic && self.field.uncover_around(coord)
         }
     }
 }
@@ -107,11 +106,9 @@ fn to_string<'a>(cell: &Cell) -> &'a str {
         Exploded => "💣",
         Uncovered => match cell.value {
             Mine => "🚩",
-            Number(n) => if n == 0 {
-                " "
-            } else {
+            Number(n) => {
                 let n = n as usize;
-                &"123456789"[n-1 .. n]
+                &" 123456789"[n..n+1]
             },
         }
     }

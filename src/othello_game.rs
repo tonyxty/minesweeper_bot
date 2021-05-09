@@ -62,9 +62,9 @@ impl OthelloGame {
 
     fn to_inline_keyboard(&self) -> InlineKeyboardMarkup {
         (0..8).map(|i| self.game.iter_row(i)
-                   .enumerate()
-                   .map(|(j, &p)| InlineKeyboardButton::callback(to_string(p), format!("{} {}", i, j)))
-                   .collect()
+            .enumerate()
+            .map(|(j, &p)| InlineKeyboardButton::callback(to_string(p), format!("{} {}", i, j)))
+            .collect()
         ).collect::<Vec<Vec<_>>>().into()
     }
 
@@ -80,12 +80,12 @@ impl OthelloGame {
 
 impl Game for OthelloGame {
     fn interact(&mut self, coord: Coord, user: &User) -> Option<InteractResult> {
-        (self.is_current_player(user) && self.game.play(coord)).then(||
-                                                                     InteractResult {
-                                                                         update_text: Some(self.get_text()),
-                                                                         update_board: Some(self.to_inline_keyboard()),
-                                                                         game_end: self.game.is_game_over(),
-                                                                     }
+        (self.is_current_player(user) && self.game.play(coord)).then_some(
+            InteractResult {
+                update_text: Some(self.get_text()),
+                update_board: Some(self.to_inline_keyboard()),
+                game_end: self.game.is_game_over(),
+            }
         )
     }
 }

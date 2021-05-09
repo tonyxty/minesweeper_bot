@@ -1,6 +1,7 @@
 #![feature(box_syntax)]
 #![feature(bool_to_option)]
 #![feature(option_result_contains)]
+#![feature(map_try_insert)]
 
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -43,7 +44,7 @@ enum Error {
 }
 
 
-fn filter_command<'a>(command: &'a str, bot_name: &str, is_private_chat: bool) -> Option<&'a str> {
+fn parse_command<'a>(command: &'a str, bot_name: &str, is_private_chat: bool) -> Option<&'a str> {
     if let Some((command, name)) = command.split_once('@') {
         (is_private_chat || name == bot_name).then_some(command)
     } else {
@@ -80,44 +81,53 @@ impl<'a> GameManager<'a> {
         }
     }
 
-    async fn handle_update(&mut self, update: Result<Update, telegram_bot::Error>) -> Result<(), Error> {
+    async fn handle_update(
+        &mut self, update: Result<Update, telegram_bot::Error>
+    ) -> Result<(), Error> {
         let update = update?;
-        if let UpdateKind::Message(message) = update.kind {
-            if let MessageKind::Text { ref data, ref entities, .. } = message.kind {
-                let is_private_chat = matches!(message.chat, MessageChat::Private(_));
+        match update.kind {
+            UpdateKind::Message(message) => {
+                if let MessageKind::Text { data, entities, .. } = &message.kind {
+                    let is_private_chat = matches!(message.chat, MessageChat::Private(_));
 
-                let command = entities.iter()
-                    .find(|x| x.kind == MessageEntityKind::BotCommand)
-                    .map(|x| &data[x.offset as usize..(x.offset + x.length) as usize]).ok_or(Error::NoCommand)?;
-                let command =
-                    filter_command(command, &self.bot_name, is_private_chat).ok_or(Error::NoCommand)?;
+                    let command = entities.iter()
+                        .find(|x| x.kind == MessageEntityKind::BotCommand)
+                        .map(|x| &data[x.offset as usize .. (x.offset + x.length) as usize])
+                        .ok_or(Error::NoCommand)?;
+                    let command = parse_command(command, &self.bot_name, is_private_chat)
+                        .ok_or(Error::NoCommand)?;
 
-                if command.starts_with("/stats") {
-                    let text = format!("{} running games.", self.running_games.len());
-                    self.api.send(message.text_reply(text)).await?;
-                } else if let Some((game, text, inline_keyboard)) = create_game(data, entities, &message.from) {
-                    let reply = self.api.send(message
-                        .text_reply(text)
-                        .reply_markup(inline_keyboard)).await?;
-                    if let MessageOrChannelPost::Message(reply) = reply {
-                        self.running_games.insert((reply.chat.id(), reply.id), game);
+                    if command.starts_with("/stats") {
+                        let text = format!("{} running games.", self.running_games.len());
+                        self.api.send(message.text_reply(text)).await?;
+                    } else if let Some((game, text, inline_keyboard)) = create_game(data, entities, &message.from) {
+                        let mut reply = message.text_reply(text);
+                        reply.reply_markup(inline_keyboard);
+                        let reply = self.api.send(reply).await?;
+                        if let MessageOrChannelPost::Message(reply) = reply {
+                            self.running_games.insert((reply.chat.id(), reply.id), game);
+                        }
+                    } else {
+                        self.api.send(message.text_reply("Command not understood.")).await?;
                     }
-                } else {
-                    self.api.send(message.text_reply("Command not understood.")).await?;
                 }
             }
-        } else if let UpdateKind::CallbackQuery(query) = update.kind {
-            self.api.send(query.acknowledge()).await?;
-            let coord = query.data.ok_or(Error::InvalidCoord)?.parse().map_err(|_| Error::InvalidCoord)?;
-            if let MessageOrChannelPost::Message(message) = query.message.ok_or(Error::MessageTooOld)? {
-                let game = self.running_games.get_mut(&(message.chat.id(), message.id)).ok_or(Error::NoSuchGame)?;
-                if let Some(result) = game.interact(coord, &query.from) {
+            UpdateKind::CallbackQuery(query) => {
+                self.api.send(query.acknowledge()).await?;
+                let coord = query.data.ok_or(Error::InvalidCoord)?
+                    .parse().map_err(|_| Error::InvalidCoord)?;
+                let message = query.message.ok_or(Error::MessageTooOld)?;
+                if let MessageOrChannelPost::Message(message) = message {
+                    let game = self.running_games.get_mut(&(message.chat.id(), message.id))
+                        .ok_or(Error::NoSuchGame)?;
+                    let result = game.interact(coord, &query.from).unwrap_or_default();
                     if result.game_end {
                         self.running_games.remove(&(message.chat.id(), message.id));
                     }
                     result.reply_to(self.api, &message).await?;
                 }
             }
+            _ => (),
         }
         Ok(())
     }
