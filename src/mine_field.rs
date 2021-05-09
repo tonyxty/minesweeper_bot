@@ -5,8 +5,8 @@ use itertools::iproduct;
 
 use crate::game::Coord;
 
-// In our UI there is no flagging & unflagging; a cell with mine is uncovered when the player
-// decided to "uncover-around" an adjacent cell.  But we use an enum here for extensibility.
+// In our UI there is no flagging; if a cell is numbered k and has exactly k uncovered neighbors
+// and the player decides to "uncover-around" it, then all neighbors will be uncovered as mines.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum State {
     Covered,
@@ -53,7 +53,7 @@ pub struct MineFieldStats {
 }
 
 pub struct MineField {
-    initialized: bool,
+    pub initialized: bool,
     field: Vec<Cell>,
     rows: u32,
     columns: u32,
@@ -78,10 +78,6 @@ impl MineField {
                 exploded: 0,
             },
         }
-    }
-
-    pub fn is_initialized(&self) -> bool {
-        self.initialized
     }
 
     pub fn get_rows(&self) -> u32 {

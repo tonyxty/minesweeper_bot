@@ -87,7 +87,7 @@ impl GridGame for Minesweeper {
     }
 
     fn interact(&mut self, coord: Coord) -> bool {
-        if !self.field.is_initialized() {
+        if !self.field.initialized {
             self.field.initialize(coord);
         }
         if self.field.get(coord).state == State::Covered {

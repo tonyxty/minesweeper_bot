@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 itertools = "*"
 rand = "*"
+thiserror = "*"
 futures = "0.3"
 tokio = { version = "0.2", features = ["full"] }
 telegram-bot = { git = "https://github.com/ayrat555/telegram-bot", branch = "ayrat555/api-fixes-10" } 

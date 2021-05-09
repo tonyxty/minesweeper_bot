@@ -480,6 +480,7 @@ dependencies = [
  "itertools",
  "rand 0.8.3",
  "telegram-bot",
+ "thiserror",
  "tokio",
 ]
 

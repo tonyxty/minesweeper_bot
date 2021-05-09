@@ -13,10 +13,10 @@ use hyper_socks2::SocksConnector;
 use telegram_bot::*;
 use telegram_bot::connector::Connector;
 use telegram_bot::connector::hyper::{default_connector, HyperConnector};
+use thiserror::Error;
 
 use crate::coop_game::CoopGame;
-use crate::Error::BotError;
-use crate::game::{Coord, Game};
+use crate::game::Game;
 use crate::minesweeper::Minesweeper;
 use crate::othello_game::OthelloGame;
 
@@ -28,25 +28,18 @@ mod coop_game;
 mod othello;
 mod othello_game;
 
-fn parse_coord(s: Option<&str>) -> Option<Coord> {
-    let mut iter = s?.split_whitespace();
-    let row = str::parse(iter.next()?).ok()?;
-    let column = str::parse(iter.next()?).ok()?;
-    Some(Coord(row, column))
-}
-
+#[derive(Error, Debug)]
 enum Error {
-    BotError(telegram_bot::Error),
+    #[error("telegram bot API encountered error")]
+    BotError(#[from] telegram_bot::Error),
+    #[error("no command given or command not understood")]
     NoCommand,
+    #[error("received invalid coordinates")]
     InvalidCoord,
+    #[error("message too old")]
     MessageTooOld,
+    #[error("message is not a game")]
     NoSuchGame,
-}
-
-impl From<telegram_bot::Error> for Error {
-    fn from(error: telegram_bot::Error) -> Self {
-        BotError(error)
-    }
 }
 
 
@@ -115,7 +108,7 @@ impl<'a> GameManager<'a> {
             }
         } else if let UpdateKind::CallbackQuery(query) = update.kind {
             self.api.send(query.acknowledge()).await?;
-            let coord = parse_coord(query.data.as_deref()).ok_or(Error::InvalidCoord)?;
+            let coord = query.data.ok_or(Error::InvalidCoord)?.parse().map_err(|_| Error::InvalidCoord)?;
             if let MessageOrChannelPost::Message(message) = query.message.ok_or(Error::MessageTooOld)? {
                 let game = self.running_games.get_mut(&(message.chat.id(), message.id)).ok_or(Error::NoSuchGame)?;
                 if let Some(result) = game.interact(coord, &query.from) {
