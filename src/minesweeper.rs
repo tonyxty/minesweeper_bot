@@ -36,7 +36,7 @@ impl Minesweeper {
         // 2 <= rows <= 10
         // 2 <= columns <= 8
         // 1 <= mines < rows * columns
-        let mut args = Vec::<usize>::new();
+        let mut args = Vec::new();
         let mut mode = MinesweeperModes::Classic;
 
         for arg in data.split_whitespace().skip(1) {

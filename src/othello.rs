@@ -116,7 +116,7 @@ impl Othello {
             valid |= self.capture(coord_i32, *direction)
         }
         if valid {
-            self.board[coord.0][coord.1] = Some(self.player);
+            self.board[coord.0 as usize][coord.1 as usize] = Some(self.player);
             if self.has_move(!self.player) {
                 self.player = !self.player;
             } else if !self.has_move(self.player) {

@@ -1,6 +1,6 @@
 use telegram_bot::{InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity, MessageEntityKind, User, UserId};
 
-use crate::game::{Game, InteractResult};
+use crate::game::{Coord, Game, InteractResult};
 use crate::othello::Othello;
 
 pub struct OthelloGame {
@@ -79,7 +79,7 @@ impl OthelloGame {
 }
 
 impl Game for OthelloGame {
-    fn interact(&mut self, coord: (usize, usize), user: &User) -> Option<InteractResult> {
+    fn interact(&mut self, coord: Coord, user: &User) -> Option<InteractResult> {
         (self.is_current_player(user) && self.game.play(coord)).then(||
                                                                      InteractResult {
                                                                          update_text: Some(self.get_text()),

@@ -1,6 +1,7 @@
 use telegram_bot::*;
 
-pub type Coord = (usize, usize);
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct Coord(pub u32, pub u32);
 
 pub struct InteractResult {
     pub update_text: Option<String>,

@@ -30,9 +30,9 @@ mod othello_game;
 
 fn parse_coord(s: Option<&str>) -> Option<Coord> {
     let mut iter = s?.split_whitespace();
-    let row = str::parse::<usize>(iter.next()?).ok()?;
-    let column = str::parse::<usize>(iter.next()?).ok()?;
-    Some((row, column))
+    let row = str::parse(iter.next()?).ok()?;
+    let column = str::parse(iter.next()?).ok()?;
+    Some(Coord(row, column))
 }
 
 enum Error {
