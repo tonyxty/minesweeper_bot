@@ -1,11 +1,56 @@
-use std::str::FromStr;
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::num::ParseIntError;
+use std::str::FromStr;
 
+use itertools::iproduct;
 use telegram_bot::*;
 use thiserror::Error;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Coord(pub i32, pub i32);
+
+impl Add for Coord {
+    type Output = Coord;
+
+    fn add(self, other: Self) -> Self::Output {
+        Self(self.0 + other.0, self.1 + other.1)
+    }
+}
+
+impl AddAssign for Coord {
+    fn add_assign(&mut self, other: Self) {
+        self.0 += other.0;
+        self.1 += other.1;
+    }
+}
+
+impl Sub for Coord {
+    type Output = Coord;
+
+    fn sub(self, other: Self) -> Self::Output {
+        Self(self.0 - other.0, self.1 - other.1)
+    }
+}
+
+impl SubAssign for Coord {
+    fn sub_assign(&mut self, other: Self) {
+        self.0 -= other.0;
+        self.1 -= other.1;
+    }
+}
+
+impl Coord {
+    pub const DIRECTIONS: [Coord; 8] = [
+        Coord(-1, -1),
+        Coord(-1, 0),
+        Coord(-1, 1),
+        Coord(0, -1),
+        Coord(0, 1),
+        Coord(1, -1),
+        Coord(1, 0),
+        Coord(1, 1),
+    ];
+}
 
 #[derive(Error, Debug)]
 pub enum ParseCoordError {
@@ -23,6 +68,28 @@ impl FromStr for Coord {
         let row = i.next().ok_or(ParseCoordError::NotEnoughComponents)?.parse()?;
         let column = i.next().ok_or(ParseCoordError::NotEnoughComponents)?.parse()?;
         Ok(Coord(row, column))
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct Size(pub u32, pub u32);
+
+impl Size {
+    pub fn contains(self, coord: Coord) -> bool {
+        (0..self.0 as i32).contains(&coord.0) && (0..self.1 as i32).contains(&coord.1)
+    }
+
+    pub fn index(self, coord: Coord) -> usize {
+        ((coord.0 as u32 * self.1) + coord.1 as u32) as _
+    }
+
+    pub fn size(self) -> u32 {
+        self.0 * self.1
+    }
+
+    pub fn valid_indices(self) -> impl Iterator<Item=Coord> {
+        iproduct!(0 .. self.0 as _, 0 .. self.1 as _)
+            .map(|(i, j)| Coord(i, j))
     }
 }
 

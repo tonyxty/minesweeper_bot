@@ -2,9 +2,7 @@ use std::collections::vec_deque::VecDeque;
 use std::iter;
 use std::ops::{Index, IndexMut};
 
-use itertools::iproduct;
-
-use crate::game::Coord;
+use crate::game::{Coord, Size};
 
 // In our UI there is no flagging; if a cell is numbered k and has exactly k uncovered neighbors
 // and the player decides to "uncover-around" it, then all neighbors will be uncovered as mines.
@@ -35,13 +33,10 @@ impl Default for Cell {
     }
 }
 
-fn neighborhood_of(coord: Coord, rows: u32, columns: u32) -> impl Iterator<Item=Coord> {
-    iproduct!(-1..=1, -1..=1)
-        .filter_map(move |(j, i)|
-            (i != 0 || j != 0).then_some((coord.0 + i, coord.1 + j)))
-        .filter_map(move |(row, column)|
-            ((0..rows as i32).contains(&row) && (0..columns as i32).contains(&column))
-                .then_some(Coord(row, column)))
+fn neighborhood_of(coord: Coord, size: Size) -> impl Iterator<Item=Coord> {
+    Coord::DIRECTIONS.iter()
+        .map(move |&d| coord + d)
+        .filter(move |&c| size.contains(c))
 }
 
 // "state" (win/loss) is not part of the MineField struct because we may support other modes of
@@ -57,24 +52,23 @@ pub struct MineFieldStats {
 // and basic operations without actual game logic, hence the pub-fields
 pub struct Field {
     pub initialized: bool,
-    pub rows: u32,
-    pub columns: u32,
+    pub size: Size,
     pub mines: u32,
     pub stats: MineFieldStats,
-    data: Vec<Cell>,
+    data: Box<[Cell]>,
 }
 
 impl Index<Coord> for Field {
     type Output = Cell;
 
     fn index(&self, index: Coord) -> &Self::Output {
-        &self.data[self.to_index(index)]
+        &self.data[self.size.index(index)]
     }
 }
 
 impl IndexMut<Coord> for Field {
     fn index_mut(&mut self, index: Coord) -> &mut Self::Output {
-        let i = self.to_index(index);
+        let i = self.size.index(index);
         &mut self.data[i]
     }
 }
@@ -86,9 +80,8 @@ impl Field {
         let mines = mines.clamp(1, rows * columns - 1);
         Self {
             initialized: false,
-            data: vec![Cell::default(); (columns * rows) as _],
-            rows,
-            columns,
+            data: vec![Cell::default(); (columns * rows) as _].into(),
+            size: Size(rows, columns),
             mines,
             stats: MineFieldStats {
                 uncovered_blank: 0,
@@ -98,37 +91,29 @@ impl Field {
         }
     }
 
-    fn to_index(&self, coord: Coord) -> usize {
-        (coord.0 as u32 * self.columns + coord.1 as u32) as _
+    pub fn iter(&self) -> impl Iterator<Item=&[Cell]> {
+        self.data.chunks(self.size.1 as _)
     }
 
     fn iter_neighborhood(&self, center: Coord) -> impl Iterator<Item=&Cell> {
-        neighborhood_of(center, self.rows, self.columns)
-            .map(move |i| &self[i])
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item=&[Cell]> {
-        self.data.chunks(self.columns as _)
+        neighborhood_of(center, self.size).map(move |i| &self[i])
     }
 
     pub fn initialize(&mut self, avoid: Coord) {
-        let avoid_index = self.to_index(avoid);
+        let avoid_index = self.size.index(avoid);
         let mut rng = rand::thread_rng();
-        for mut i in rand::seq::index::sample(&mut rng, (self.columns * self.rows - 1) as _, self.mines as _).into_iter() {
+        for mut i in rand::seq::index::sample(&mut rng, (self.size.size() - 1) as _, self.mines as _) {
             if i >= avoid_index {
                 i += 1;
             }
             self.data[i].value = Mine;
         }
-        for i in 0..self.rows as _ {
-            for j in 0..self.columns as _ {
-                let coord = Coord(i, j);
-                if self[coord].value != Mine {
-                    let value = self.iter_neighborhood(coord)
-                        .filter(|c| c.value == Mine)
-                        .count() as u32;
-                    self[coord].value = Number(value);
-                }
+        for coord in self.size.valid_indices() {
+            if self[coord].value != Mine {
+                let value = self.iter_neighborhood(coord)
+                    .filter(|c| c.value == Mine)
+                    .count() as u32;
+                self[coord].value = Number(value);
             }
         }
         self.initialized = true;
@@ -138,7 +123,7 @@ impl Field {
     fn reveal(&mut self, coords: impl Iterator<Item=Coord>) {
         // flood-fill
         // reveal all adjacent cells if the current cell has a value of 0
-        let mut queue = VecDeque::with_capacity((self.columns * self.rows) as _);
+        let mut queue = VecDeque::with_capacity(self.size.size() as _);
         queue.extend(coords);
         while let Some(coord) = queue.pop_front() {
             if self[coord].state == Covered {
@@ -149,7 +134,7 @@ impl Field {
                     self.stats.uncovered_blank += 1;
                 }
                 if self[coord].value == Number(0) {
-                    queue.extend(neighborhood_of(coord, self.rows, self.columns)
+                    queue.extend(neighborhood_of(coord, self.size)
                         .filter(|&i| self[i].state == Covered));
                 }
             }
@@ -157,7 +142,7 @@ impl Field {
     }
 
     fn reveal_around(&mut self, coord: Coord) {
-        self.reveal(neighborhood_of(coord, self.rows, self.columns));
+        self.reveal(neighborhood_of(coord, self.size));
     }
 
     // simple actions

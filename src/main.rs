@@ -8,8 +8,8 @@ use std::convert::TryFrom;
 use std::env;
 
 use futures::StreamExt;
-use hyper::Uri;
 use hyper::client::{Client, HttpConnector};
+use hyper::Uri;
 use hyper_socks2::SocksConnector;
 use telegram_bot::*;
 use telegram_bot::connector::Connector;
@@ -19,14 +19,13 @@ use thiserror::Error;
 use crate::coop_game::CoopGame;
 use crate::game::Game;
 use crate::minesweeper::game::Game as MinesweeperGame;
-use crate::othello_game::OthelloGame;
+use othello::game::Game as OthelloGame;
 
 mod minesweeper;
 mod grid_game;
 mod game;
 mod coop_game;
 mod othello;
-mod othello_game;
 
 #[derive(Error, Debug)]
 enum Error {

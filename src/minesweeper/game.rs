@@ -8,17 +8,17 @@ use crate::grid_game::GameState::{GameOver, Normal, Solved};
 use super::field::{Cell, Field, State, CellValue};
 
 #[derive(Eq, PartialEq)]
-pub enum GameMode {
+pub enum Mode {
     Classic,
     NoFlag,
 }
 
 pub struct Game {
     field: Field,
-    mode: GameMode,
+    mode: Mode,
 }
 
-impl FromStr for GameMode {
+impl FromStr for Mode {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -37,7 +37,7 @@ impl Game {
         // 2 <= columns <= 8
         // 1 <= mines < rows * columns
         let mut args = Vec::new();
-        let mut mode = GameMode::Classic;
+        let mut mode = Mode::Classic;
 
         for arg in data.split_whitespace().skip(1) {
             if let Ok(game_mode) = arg.parse() {
@@ -63,7 +63,7 @@ impl GridGame for Game {
         let stats = &self.field.stats;
         if stats.exploded > 0 {
             GameOver
-        } else if stats.uncovered_blank + self.field.mines == self.field.rows * self.field.columns {
+        } else if stats.uncovered_blank + self.field.mines == self.field.size.size() {
             Solved
         } else {
             Normal
@@ -71,7 +71,7 @@ impl GridGame for Game {
     }
 
     fn get_text(&self) -> String {
-        format!("{} x {}\n{} left / {} mines", self.field.rows, self.field.columns,
+        format!("{} x {}\n{} left / {} mines", self.field.size.0, self.field.size.1,
             self.field.stats.covered_mine, self.field.mines)
     }
 
@@ -81,8 +81,8 @@ impl GridGame for Game {
             .map(|(i, row)| row.iter()
                 .enumerate()
                 .map(|(j, c)| InlineKeyboardButton::callback(to_string(c), format!("{} {}", i, j)))
-                .collect())
-            .collect::<Vec<Vec<_>>>().into()
+                .collect()
+            ).collect::<Vec<Vec<_>>>().into()
     }
 
     fn interact(&mut self, coord: Coord) -> bool {
@@ -93,7 +93,7 @@ impl GridGame for Game {
             self.field.uncover(coord);
             true
         } else {
-            self.mode == GameMode::Classic && self.field.uncover_around(coord)
+            self.mode == Mode::Classic && self.field.uncover_around(coord)
         }
     }
 }

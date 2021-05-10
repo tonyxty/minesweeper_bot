@@ -1,15 +1,15 @@
 use telegram_bot::{InlineKeyboardButton, InlineKeyboardMarkup, MessageEntity, MessageEntityKind, User, UserId};
 
-use crate::game::{Coord, Game, InteractResult};
-use crate::othello::Othello;
+use crate::game::{self, Coord, InteractResult};
+use super::board::Board;
 
-pub struct OthelloGame {
-    game: Othello,
+pub struct Game {
+    board: Board,
     first_player: String,
     second_player: (UserId, String),
 }
 
-impl OthelloGame {
+impl Game {
     pub fn from_message<'a>(
         data: &str, entities: impl IntoIterator<Item=&'a MessageEntity>, user: &User
     ) -> Option<(Self, String, InlineKeyboardMarkup)> {
@@ -23,8 +23,8 @@ impl OthelloGame {
             user.id,
             user.username.to_owned().unwrap_or_else(|| user.first_name.to_owned())
         );
-        let game = OthelloGame {
-            game: Othello::new(),
+        let game = Game {
+            board: Board::new(),
             first_player,
             second_player,
         };
@@ -34,10 +34,10 @@ impl OthelloGame {
     }
 
     fn get_text(&self) -> String {
-        let scores = self.game.get_score();
+        let scores = self.board.get_score();
         let mut text = format!("{} {} vs {} {}", self.first_player, scores.0, scores.1, self.second_player.1);
 
-        if self.game.is_game_over() {
+        if self.board.game_over {
             use std::cmp::Ordering::*;
             match u32::cmp(&scores.0, &scores.1) {
                 Less => {
@@ -52,7 +52,7 @@ impl OthelloGame {
                     text += self.first_player.as_str();
                 }
             }
-        } else if self.game.get_current_player() {
+        } else if self.board.player {
             text += " ⚪";
         } else {
             text.insert_str(0, "⚫ ");
@@ -61,16 +61,17 @@ impl OthelloGame {
     }
 
     fn to_inline_keyboard(&self) -> InlineKeyboardMarkup {
-        (0..8).map(|i| self.game.iter_row(i)
+        self.board.iter()
             .enumerate()
-            .map(|(j, &p)| InlineKeyboardButton::callback(to_string(p), format!("{} {}", i, j)))
-            .collect()
-        ).collect::<Vec<Vec<_>>>().into()
+            .map(|(i, row)| row.iter()
+                .enumerate()
+                .map(|(j, &p)| InlineKeyboardButton::callback(to_string(p), format!("{} {}", i, j)))
+                .collect()
+            ).collect::<Vec<Vec<_>>>().into()
     }
 
     fn is_current_player(&self, user: &User) -> bool {
-        let player = self.game.get_current_player();
-        if !player {
+        if !self.board.player {
             user.username.contains(&self.first_player)
         } else {
             user.id == self.second_player.0
@@ -78,13 +79,13 @@ impl OthelloGame {
     }
 }
 
-impl Game for OthelloGame {
+impl game::Game for Game {
     fn interact(&mut self, coord: Coord, user: &User) -> Option<InteractResult> {
-        (self.is_current_player(user) && self.game.play(coord)).then_some(
+        (self.is_current_player(user) && self.board.play(coord)).then_some(
             InteractResult {
                 update_text: Some(self.get_text()),
                 update_board: Some(self.to_inline_keyboard()),
-                game_end: self.game.is_game_over(),
+                game_end: self.board.game_over,
             }
         )
     }
