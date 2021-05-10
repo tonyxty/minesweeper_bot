@@ -5,20 +5,20 @@ use telegram_bot::{InlineKeyboardButton, InlineKeyboardMarkup};
 use crate::game::Coord;
 use crate::grid_game::{GameState, GridGame};
 use crate::grid_game::GameState::{GameOver, Normal, Solved};
-use crate::mine_field::{Cell, MineField, State, CellValue};
+use super::field::{Cell, Field, State, CellValue};
 
 #[derive(Eq, PartialEq)]
-pub enum MinesweeperMode {
+pub enum GameMode {
     Classic,
     NoFlag,
 }
 
-pub struct Minesweeper {
-    field: MineField,
-    mode: MinesweeperMode,
+pub struct Game {
+    field: Field,
+    mode: GameMode,
 }
 
-impl FromStr for MinesweeperMode {
+impl FromStr for GameMode {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -30,14 +30,14 @@ impl FromStr for MinesweeperMode {
     }
 }
 
-impl Minesweeper {
+impl Game {
     pub fn from_message(data: &str) -> Self {
         // constraints:
         // 2 <= rows <= 10
         // 2 <= columns <= 8
         // 1 <= mines < rows * columns
         let mut args = Vec::new();
-        let mut mode = MinesweeperMode::Classic;
+        let mut mode = GameMode::Classic;
 
         for arg in data.split_whitespace().skip(1) {
             if let Ok(game_mode) = arg.parse() {
@@ -52,13 +52,13 @@ impl Minesweeper {
         let columns = args.get(1).copied().unwrap_or(8).min(8);
         let mines = args.get(2).copied().unwrap_or_else(|| rows * columns / 10);
         Self {
-            field: MineField::new(rows, columns, mines),
+            field: Field::new(rows, columns, mines),
             mode,
         }
     }
 }
 
-impl GridGame for Minesweeper {
+impl GridGame for Game {
     fn get_state(&self) -> GameState {
         let stats = &self.field.stats;
         if stats.exploded > 0 {
@@ -93,7 +93,7 @@ impl GridGame for Minesweeper {
             self.field.uncover(coord);
             true
         } else {
-            self.mode == MinesweeperMode::Classic && self.field.uncover_around(coord)
+            self.mode == GameMode::Classic && self.field.uncover_around(coord)
         }
     }
 }
@@ -109,7 +109,7 @@ fn to_string<'a>(cell: &Cell) -> &'a str {
             Number(n) => {
                 let n = n as usize;
                 &" 123456789"[n..n+1]
-            },
+            }
         }
     }
 }

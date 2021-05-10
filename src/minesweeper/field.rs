@@ -53,9 +53,9 @@ pub struct MineFieldStats {
     pub exploded: u32,
 }
 
-// This should mostly be considered a "passive" data structure, i.e., it only provides data store
+// This should be considered a mostly "passive" data structure, i.e., it only provides data store
 // and basic operations without actual game logic, hence the pub-fields
-pub struct MineField {
+pub struct Field {
     pub initialized: bool,
     pub rows: u32,
     pub columns: u32,
@@ -64,7 +64,7 @@ pub struct MineField {
     data: Vec<Cell>,
 }
 
-impl Index<Coord> for MineField {
+impl Index<Coord> for Field {
     type Output = Cell;
 
     fn index(&self, index: Coord) -> &Self::Output {
@@ -72,14 +72,14 @@ impl Index<Coord> for MineField {
     }
 }
 
-impl IndexMut<Coord> for MineField {
+impl IndexMut<Coord> for Field {
     fn index_mut(&mut self, index: Coord) -> &mut Self::Output {
         let i = self.to_index(index);
         &mut self.data[i]
     }
 }
 
-impl MineField {
+impl Field {
     pub fn new(rows: u32, columns: u32, mines: u32) -> Self {
         let rows = rows.max(2);
         let columns = columns.max(2);
