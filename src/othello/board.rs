@@ -40,8 +40,8 @@ impl Board {
     pub fn get_score(&self) -> (u32, u32) {
         let mut scores = [0, 0];
         for row in &self.data {
-            for i in row {
-                if let Some(i) = *i {
+            for &i in row {
+                if let Some(i) = i {
                     scores[i as usize] += 1;
                 }
             }
@@ -74,9 +74,8 @@ impl Board {
     fn capture(&mut self, coord: Coord, direction: Coord) -> bool {
         let anchor = self.find_anchor(coord, direction, self.player);
         if let Some(mut anchor) = anchor {
-            loop {
+            while anchor != coord {
                 anchor -= direction;
-                if anchor == coord { break; }
                 self[anchor] = Some(self.player);
             }
             true

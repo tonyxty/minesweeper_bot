@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use itertools::Itertools;
 use telegram_bot::{User, InlineKeyboardMarkup};
 
 use crate::game::{Coord, Game, InteractResult};
@@ -37,24 +38,26 @@ impl<T: GridGame> Game for CoopGame<T> {
                     game_end: false,
                 }
             } else {
-                let mut summary = String::with_capacity(self.interactions.len() * 10);
                 let mut largest_count = 0;
                 let mut top_contributor = "";
-                for (name, count) in self.interactions.iter() {
-                    summary += format!("{} - {} moves\n", name, count).as_str();
-                    if *count > largest_count {
-                        largest_count = *count;
-                        top_contributor = name;
-                    }
-                }
-                let count = self.interactions.get(username).unwrap();
-                if *count == largest_count {
+                let mut summary = self.interactions.iter()
+                    .map(|(name, &count)| {
+                        if count > largest_count {
+                            largest_count = count;
+                            top_contributor = name;
+                        }
+                        format!("{} - {} moves", name.as_str(), count)
+                    }).join("\n");
+                let &count = self.interactions.get(username).unwrap();
+                if count == largest_count {
+                    // It's the top contributor acting
                     if state == GameState::Solved {
                         summary += format!("{} has won the game!", username).as_str();
                     } else {
                         summary += format!("Boom, {} is dead!", username).as_str();
                     }
                 } else if state == GameState::Solved {
+                    // Someone else interfered
                     summary += format!("{} has snatched it from {}!", username, top_contributor).as_str();
                 } else {
                     summary += format!("{} has ruined it for {}!", username, top_contributor).as_str();

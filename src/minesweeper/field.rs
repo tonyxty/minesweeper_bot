@@ -48,8 +48,6 @@ pub struct MineFieldStats {
     pub exploded: u32,
 }
 
-// This should be considered a mostly "passive" data structure, i.e., it only provides data store
-// and basic operations without actual game logic, hence the pub-fields
 pub struct Field {
     pub initialized: bool,
     pub size: Size,

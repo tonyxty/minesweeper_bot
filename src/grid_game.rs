@@ -13,5 +13,5 @@ pub trait GridGame {
     fn get_state(&self) -> GameState;
     fn get_text(&self) -> String;
     fn to_inline_keyboard(&self) -> InlineKeyboardMarkup;
-    fn interact(&mut self, coord: Coord) -> bool;
+    fn interact(&mut self, coord: Coord) -> bool;   // return true if the board changed
 }
