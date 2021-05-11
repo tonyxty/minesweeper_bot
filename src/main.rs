@@ -1,7 +1,6 @@
 #![feature(box_syntax)]
 #![feature(bool_to_option)]
 #![feature(option_result_contains)]
-#![feature(map_try_insert)]
 
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -95,9 +94,15 @@ impl<'a> GameManager<'a> {
                     let command = parse_command(command, &self.bot_name, is_private_chat)
                         .ok_or(Error::NoCommand)?;
 
-                    if command.starts_with("/stats") {
+                    if command == "/stats" {
                         let text = format!("{} running games.", self.running_games.len());
                         self.api.send(message.text_reply(text)).await?;
+                    } else if command == "/del" {
+                        if let Some(reply_to) = message.reply_to_message {
+                            self.running_games.remove(&(reply_to.to_source_chat(), reply_to.to_message_id()))
+                                .ok_or(Error::NoSuchGame)?;
+                            self.api.send(reply_to.delete()).await?;
+                        }
                     } else if let Some((game, text, inline_keyboard)) = create_game(data, entities, &message.from) {
                         let mut reply = message.text_reply(text);
                         reply.reply_markup(inline_keyboard);
@@ -153,6 +158,8 @@ async fn main() {
     let mut manager = GameManager::new(&api).await;
 
     while let Some(update) = stream.next().await {
-        let _ = manager.handle_update(update).await;
+        if let Err(e) = manager.handle_update(update).await {
+            eprintln!("{:?}", e);
+        }
     }
 }
