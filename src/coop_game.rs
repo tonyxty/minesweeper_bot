@@ -47,7 +47,7 @@ impl<T: GridGame> Game for CoopGame<T> {
                             top_contributor = name;
                         }
                         format!("{} - {} moves", name.as_str(), count)
-                    }).join("\n");
+                    }).join("\n") + "\n";
                 let &count = self.interactions.get(username).unwrap();
                 if count == largest_count {
                     // It's the top contributor acting
